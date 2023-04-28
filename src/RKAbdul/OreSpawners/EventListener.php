@@ -17,96 +17,73 @@ use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\block\BlockUpdateEvent;
 
-use RKAbdul\OreSpawners\libs\DenielWorld\EzTiles\data\TileInfo;
-use RKAbdul\OreSpawners\libs\DenielWorld\EzTiles\tile\SimpleTile;
+use RKAbdul\OreSpawners\libs\denisgladkikh\tile\SimpleTile;
 
-class EventListener implements Listener
-{
+class EventListener implements Listener {
 
-    /**
-     * @var Main
-     */
+    /** @var Main */
     private $plugin;
 
     private $cfg;
 
-    public function __construct(Main $plugin)
-    {
+    public function __construct(Main $plugin) {
         $this->plugin = $plugin;
         $this->cfg = $this->plugin->getConfig()->getAll();
     }
 
-    public function onBlockUpdate(BlockUpdateEvent $event)
-    {
+    public function onBlockUpdate(BlockUpdateEvent $event): void {
         $block = $event->getBlock();
-        $bbelow = $block->getLevel()->getBlock($event->getBlock()->floor()->down(1));
-        $blocks = [];
-
-        foreach (array_values($this->plugin->getConfig()->get("ore-generator-blocks")) as $blockID) {
-            array_push($blocks, $blockID);
-        }
+        $bbelow = $block->getLevel()->getBlock($event->getBlock()->floor()->down());
+        $blocks = array_values($this->plugin->getConfig()->get("ore-generator-blocks"));
 
         if (in_array($bbelow->getId(), $blocks)) {
             $tile = $event->getBlock()->getLevel()->getTile($bbelow);
-            if (!$tile instanceof SimpleTile) return;
+            if (!$tile instanceof SimpleTile) {
+                return;
+            }
+
             $ore = $this->checkBlock($bbelow);
             $delay = $this->getDelay($bbelow);
             if (!$event->isCancelled()) {
                 $event->setCancelled(true);
-                if ($event->getBlock()->getId() == $ore->getId()) return;
+                if ($event->getBlock()->getId() == $ore->getId()) {
+                    return;
+                }
+
                 $this->plugin->getScheduler()->scheduleDelayedTask(new ClosureTask(function (int $currentTick) use ($event, $ore): void {
                     if ($event->getBlock()->getLevel() !== null) {
                         $event->getBlock()->getLevel()->setBlock($event->getBlock()->floor(), $ore, false, true);
-                        if ($this->cfg["fizz-sound"] == true) $event->getBlock()->getLevel()->addSound(new FizzSound($event->getBlock()->asVector3()));
+                        if ($this->cfg["fizz-sound"] == true) {
+                            $event->getBlock()->getLevel()->addSound(new FizzSound($event->getBlock()->asVector3()));
+                        }
                     }
                 }), intval($delay));
             }
         }
     }
 
-    public function checkBlock(Block $bbelow)
-    {
+    public function checkBlock(Block $bbelow): ?Block {
         $bbid = $bbelow->getId();
-        $coalid = intval($this->cfg["ore-generator-blocks"]["coal"]);
-        $ironid = intval($this->cfg["ore-generator-blocks"]["iron"]);
-        $goldid = intval($this->cfg["ore-generator-blocks"]["gold"]);
-        $diamondid = intval($this->cfg["ore-generator-blocks"]["diamond"]);
-        $emeraldid = intval($this->cfg["ore-generator-blocks"]["emerald"]);
-        $lapizid = intval($this->cfg["ore-generator-blocks"]["lapis"]);
-        $redstoneid = intval($this->cfg["ore-generator-blocks"]["redstone"]);
-        switch ($bbid) {
-            case $coalid:
-                $ore = Block::get(Block::COAL_ORE);
-                break;
-            case $ironid:
-                $ore = Block::get(Block::IRON_ORE);
-                break;
-            case $goldid:
-                $ore = Block::get(Block::GOLD_ORE);
-                break;
-            case $diamondid:
-                $ore = Block::get(Block::DIAMOND_ORE);
-                break;
-            case $emeraldid:
-                $ore = Block::get(Block::EMERALD_ORE);
-                break;
-            case $lapizid:
-                $ore = Block::get(Block::LAPIS_ORE);
-                break;
-            case $redstoneid:
-                $ore = Block::get(Block::REDSTONE_ORE);
-                break;
+        $ores = [
+            "coal" => Block::COAL_ORE,
+            "iron" => Block::IRON_ORE,
+            "gold" => Block::GOLD_ORE,
+            "diamond" => Block::DIAMOND_ORE,
+            "emerald" => Block::EMERALD_ORE,
+            "lapis" => Block::LAPIS_ORE,
+            "redstone" => Block::REDSTONE_ORE,
+        ];
+
+        if (isset($ores[$bbid])) {
+            return Block::get($ores[$bbid]);
         }
-        if (isset($ore)) {
-            return $ore;
-        }
-        return false;
+
+        return null;
     }
 
-    public function getDelay(Block $block)
-    {
+    public function getDelay(Block $block): float {
         $tile = $block->getLevel()->getTile($block->asVector3());
-        $stacked = $tile->getData("stacked")->getValue();
+        $stacked = $tile->stacked ?? 1;
         $base = intval($this->cfg["base-delay"]);
         return ($base / $stacked) * 20;
     }
